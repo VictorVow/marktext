@@ -90,8 +90,12 @@ class EditorWindow extends BaseWindow {
     bufferStoreInfo: BufferStoreInfo | null = null
   ): BrowserWindow {
     const { menu: appMenu, env, preferences, editorBufferStore } = this._accessor
-    const addBlankTab =
+    const isBlankWindow =
       !bufferStoreInfo && !rootDirectory && fileList.length === 0 && markdownList.length === 0
+    // When the window has nothing to open we either show the welcome page or
+    // fall back to the legacy behaviour of creating an empty untitled tab.
+    const showWelcomePage = isBlankWindow && !!preferences.getItem('showWelcomePage')
+    const addBlankTab = isBlankWindow && !showWelcomePage
 
     const mainWindowState = windowStateKeeper({
       defaultWidth: 1200,
@@ -173,6 +177,7 @@ class EditorWindow extends BaseWindow {
 
       win!.webContents.send('mt::bootstrap-editor', {
         addBlankTab,
+        showWelcomePage,
         markdownList: this.bufferStoreInfo!.filePath ? [] : this._markdownToOpen,
         lineEnding,
         sideBarVisibility: resolvedSideBarVisibility,
@@ -484,12 +489,18 @@ class EditorWindow extends BaseWindow {
     browserWindow!.webContents.once('did-finish-load', () => {
       this.lifecycle = WindowLifecycle.READY
       const { preferences } = this._accessor
-      const { sideBarVisibility, restoreLayoutState, tabBarVisibility, sourceCodeModeEnabled } =
-        preferences.getAll()
+      const {
+        sideBarVisibility,
+        restoreLayoutState,
+        tabBarVisibility,
+        sourceCodeModeEnabled,
+        showWelcomePage
+      } = preferences.getAll()
       const resolvedSideBarVisibility = restoreLayoutState ? !!sideBarVisibility : false
       const lineEnding = preferences.getPreferredEol()
       browserWindow!.webContents.send('mt::bootstrap-editor', {
-        addBlankTab: true,
+        addBlankTab: !showWelcomePage,
+        showWelcomePage: !!showWelcomePage,
         markdownList: [],
         lineEnding,
         sideBarVisibility: resolvedSideBarVisibility,

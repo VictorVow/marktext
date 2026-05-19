@@ -349,6 +349,16 @@
     "noTabsOpen": "You have no tabs open.",
     "newFile": "New File"
   },
+  "welcome": {
+    "tagline": "Editing evolved",
+    "start": "Start",
+    "newFile": "New File…",
+    "openFile": "Open File…",
+    "openFolder": "Open Folder…",
+    "recent": "Recent",
+    "noRecent": "No recent files or folders",
+    "showOnStartup": "Show welcome page on startup"
+  },
   "import": {
     "title": "Import or Open",
     "description": "Drop here to get your stuff into MarkText"

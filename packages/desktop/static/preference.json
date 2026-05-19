@@ -12,6 +12,7 @@
   "startUpAction": "restoreAll",
   "restoreLayoutState": true,
   "defaultDirectoryToOpen": "",
+  "showWelcomePage": true,
   "lastOpenedFolder": "",
   "treePathExcludePatterns": [],
   "language": "en",

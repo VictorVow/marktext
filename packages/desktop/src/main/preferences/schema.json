@@ -66,6 +66,11 @@
     "description": "General--The default directory that should be opened on startup when startUp=folder.",
     "type": "string"
   },
+  "showWelcomePage": {
+    "description": "General--Show the welcome page in new windows that have no file or folder open.",
+    "type": "boolean",
+    "default": true
+  },
   "language": {
     "description": "General--The language MarkText uses. No default on purpose: the language is auto-detected from the system locale on first start (after app ready), so a schema default would always win over detection.",
     "type": "string"

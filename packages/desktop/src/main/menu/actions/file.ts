@@ -786,6 +786,13 @@ ipcMain.on('mt::cmd-open-folder', (e) => {
   openFolder(win)
 })
 
+ipcMain.on('mt::cmd-open-recent', (e, pathname: string) => {
+  const win = BrowserWindow.fromWebContents(e.sender)
+  if (win && pathname) {
+    openFileOrFolder(win, pathname)
+  }
+})
+
 ipcMain.on('mt::cmd-close-window', (e) => {
   const win = BrowserWindow.fromWebContents(e.sender)
   if (win) {

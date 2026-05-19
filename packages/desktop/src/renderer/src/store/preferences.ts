@@ -34,6 +34,7 @@ export interface PreferencesState {
   startUpAction: StartUpAction | string
   restoreLayoutState: boolean
   defaultDirectoryToOpen: string
+  showWelcomePage: boolean
   lastOpenedFolder: string
   treePathExcludePatterns: string[]
   language: string
@@ -157,6 +158,7 @@ export const usePreferencesStore = defineStore('preferences', {
     startUpAction: 'restoreAll',
     restoreLayoutState: true,
     defaultDirectoryToOpen: '',
+    showWelcomePage: true,
     lastOpenedFolder: '',
     treePathExcludePatterns: [],
     language: 'en',

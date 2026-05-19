@@ -511,6 +511,9 @@ class AppMenu {
     ipcMain.on('mt::add-recently-used-document', (_e, pathname: string) => {
       this.addRecentlyUsedDocument(pathname)
     })
+    ipcMain.handle('mt::get-recently-used-documents', () => {
+      return this.getRecentlyUsedDocuments()
+    })
     ipcMain.on('mt::update-line-ending-menu', (_e, windowId: number, lineEnding: string) => {
       if (!this.has(windowId)) return
       this.updateLineEndingMenu(windowId, lineEnding)

@@ -61,6 +61,7 @@ export interface IpcInvokeChannels {
   }
   'mt::dialog::show-save': { args: [request: SaveDialogRequest]; ret: string | null }
   'mt::fonts::list': { args: []; ret: string[] }
+  'mt::get-recently-used-documents': { args: []; ret: string[] }
   'mt::fs-trash-item': { args: [pathname: string]; ret: boolean }
   'mt::fs::copy': { args: [src: string, dest: string]; ret: void }
   'mt::fs::copy-with-content-hash': { args: [src: string, outputDir: string]; ret: string }
@@ -135,6 +136,7 @@ export interface IpcSendChannels {
   'mt::cmd-new-editor-window': []
   'mt::cmd-open-file': []
   'mt::cmd-open-folder': []
+  'mt::cmd-open-recent': [pathname: string]
   'mt::cmd-toggle-autosave': []
   'mt::editor-selection-changed': [windowId: number, state: unknown]
   'mt::format-link-click': [payload: { data: unknown; dirname: string }]
