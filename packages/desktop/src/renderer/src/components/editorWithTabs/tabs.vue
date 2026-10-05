@@ -47,9 +47,10 @@ import { useEditorStore } from '@/store/editor'
 import { useLayoutStore } from '@/store/layout'
 import { storeToRefs } from 'pinia'
 import autoScroll from 'dom-autoscroller'
-import dragula from 'dragula'
+import type dragula from 'dragula'
 import { Plus, Close } from '@element-plus/icons-vue'
 import { showContextMenu } from '../../contextMenu/tabs'
+import { createTabReorderDrake } from './tabReorder'
 import bus from '../../bus'
 import type { IFileState } from '@shared/types/files'
 
@@ -62,11 +63,6 @@ interface AutoScroller {
   readonly down: boolean
   destroy: (forceCleanAnimation?: boolean) => void
 }
-
-// Pointer travel, in CSS pixels, that separates a click from a tab drag.
-// Matches the platform drag thresholds (Blink 3px, Win32 SM_CXDRAG 4px) with a
-// little slack for trackpad drift.
-const DRAG_THRESHOLD_PX = 5
 
 const tabContainer = ref<HTMLElement | null>(null)
 const tabDropContainer = ref<HTMLElement | null>(null)
@@ -205,35 +201,7 @@ onMounted(() => {
   tabsEl.addEventListener('wheel', handleTabScroll)
 
   // Allow tab drag and drop to reorder tabs.
-  drake = dragula([tabDropContainer.value], {
-    direction: 'horizontal',
-    revertOnSpill: true,
-    mirrorContainer: tabDropContainer.value,
-    ignoreInputTextSelection: false,
-    // dragula's own default is 0, i.e. a single pixel of pointer drift between
-    // press and release turns a click into a drag. The drag then swallows the
-    // `click` entirely — its mirror element takes the mouseup and is removed
-    // before the browser can retarget — so `selectFile` never runs and the tab
-    // refuses to activate (#4895). Require a deliberate movement instead.
-    slideFactorX: DRAG_THRESHOLD_PX,
-    slideFactorY: DRAG_THRESHOLD_PX
-  }).on('drop', (el, _target, _source, sibling) => {
-    // Current tab that was dropped and need to be reordered.
-    const droppedId = el?.getAttribute('data-id')
-    // This should be the next tab (tab | ... | el | sibling | tab | ...) but may be
-    // the mirror image or null (tab | ... | el | sibling or null) if last tab.
-    const nextTabId = sibling ? sibling.getAttribute('data-id') : null
-    const isLastTab = !sibling || sibling.classList.contains('gu-mirror')
-    if (!droppedId || (sibling && !nextTabId)) {
-      console.error('Tab reorder error: invalid tab IDs')
-      return
-    }
-
-    editorStore.EXCHANGE_TABS_BY_ID({
-      fromId: droppedId,
-      toId: isLastTab ? null : nextTabId
-    })
-  })
+  drake = createTabReorderDrake(tabDropContainer.value, 'horizontal')
 
   // Scroll when dragging a tab to the beginning or end of the tab container.
   autoScroller = autoScroll([tabsEl], {

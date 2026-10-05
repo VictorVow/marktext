@@ -1,5 +1,8 @@
 <template>
-  <div class="tree-view">
+  <div
+    ref="treeView"
+    class="tree-view"
+  >
     <div class="title">
       <!-- Placeholder -->
     </div>
@@ -51,7 +54,9 @@
       </div>
       <div
         v-show="showOpenedFiles"
+        ref="openedFilesList"
         class="opened-files-list"
+        :style="{ maxHeight: `${openedFilesMaxHeight}px` }"
       >
         <transition-group name="list">
           <opened-file
@@ -61,6 +66,11 @@
           />
         </transition-group>
       </div>
+      <div
+        v-if="showOpenedFiles && tabCount > MIN_VISIBLE_ROWS"
+        class="opened-files-resize"
+        @mousedown.prevent="startResize"
+      />
     </div>
 
     <!-- Project tree view -->
@@ -152,7 +162,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useProjectStore } from '@/store/project'
 import { useEditorStore } from '@/store/editor'
@@ -160,10 +170,13 @@ import { usePreferencesStore } from '@/store/preferences'
 import Folder from './treeFolder.vue'
 import File from './treeFile.vue'
 import OpenedFile from './treeOpenedTab.vue'
+import { createTabReorderDrake } from '../editorWithTabs/tabReorder'
 import bus from '../../bus'
 import { showContextMenu } from '../../contextMenu/sideBar'
 import { useI18n } from 'vue-i18n'
 import { ArrowRight } from '@element-plus/icons-vue'
+import autoScroll from 'dom-autoscroller'
+import type dragula from 'dragula'
 import { PATH_SEPARATOR } from '@/config'
 import { isMac } from '@/util'
 import {
@@ -198,6 +211,19 @@ const SHOW_OPENED_FILES_KEY = 'side-bar-show-opened-files'
 const readSectionExpanded = (key: string): boolean => localStorage.getItem(key) !== 'false'
 const showDirectories = ref(readSectionExpanded(SHOW_DIRECTORIES_KEY))
 const showOpenedFiles = ref(readSectionExpanded(SHOW_OPENED_FILES_KEY))
+
+// Must match the `.opened-file` row height in treeOpenedTab.vue.
+const ROW_HEIGHT_PX = 28
+// The list shows this many rows before it scrolls and offers a resize handle.
+const MIN_VISIBLE_ROWS = 4
+const MIN_LIST_HEIGHT_PX = MIN_VISIBLE_ROWS * ROW_HEIGHT_PX
+// Space kept for the project tree below when the list is dragged taller.
+const PROJECT_TREE_RESERVE_PX = 150
+const OPENED_FILES_HEIGHT_KEY = 'side-bar-opened-files-height'
+const storedListHeight = Number(localStorage.getItem(OPENED_FILES_HEIGHT_KEY))
+const listHeight = ref(storedListHeight > 0 ? storedListHeight : MIN_LIST_HEIGHT_PX)
+const treeView = ref<HTMLElement | null>(null)
+const openedFilesList = ref<HTMLElement | null>(null)
 const createName = ref('')
 const input = ref<HTMLInputElement | null>(null)
 
@@ -218,6 +244,15 @@ const { openedFilesInSidebar } = storeToRefs(preferencesStore)
 const createCacheDirname = computed<string | undefined>(() => {
   const cache = createCache.value as { dirname?: string }
   return cache.dirname
+})
+
+const tabCount = computed(() => props.tabs?.length ?? 0)
+
+// Never taller than the rows themselves, so closing tabs leaves no gap.
+const openedFilesMaxHeight = computed(() => {
+  if (tabCount.value <= MIN_VISIBLE_ROWS) return MIN_LIST_HEIGHT_PX
+  const contentHeight = tabCount.value * ROW_HEIGHT_PX
+  return Math.max(MIN_LIST_HEIGHT_PX, Math.min(listHeight.value, contentHeight))
 })
 
 // Methods
@@ -248,6 +283,59 @@ const toggleDirectories = (): void => {
   showDirectories.value = !showDirectories.value
   localStorage.setItem(SHOW_DIRECTORIES_KEY, String(showDirectories.value))
 }
+
+let resizeStartY = 0
+let resizeStartHeight = 0
+
+const handleResizeMove = (event: MouseEvent): void => {
+  const treeViewHeight = treeView.value?.clientHeight ?? Infinity
+  const maxHeight = Math.max(MIN_LIST_HEIGHT_PX, treeViewHeight - PROJECT_TREE_RESERVE_PX)
+  const height = resizeStartHeight + event.clientY - resizeStartY
+  listHeight.value = Math.max(MIN_LIST_HEIGHT_PX, Math.min(height, maxHeight))
+}
+
+const stopResize = (): void => {
+  document.removeEventListener('mousemove', handleResizeMove)
+  document.removeEventListener('mouseup', stopResize)
+  localStorage.setItem(OPENED_FILES_HEIGHT_KEY, String(listHeight.value))
+}
+
+const startResize = (event: MouseEvent): void => {
+  resizeStartY = event.clientY
+  // Start from the rendered height: the stored one may exceed the content.
+  resizeStartHeight = openedFilesMaxHeight.value
+  document.addEventListener('mousemove', handleResizeMove)
+  document.addEventListener('mouseup', stopResize)
+}
+
+interface AutoScroller {
+  readonly down: boolean
+  destroy: (forceCleanAnimation?: boolean) => void
+}
+
+let drake: dragula.Drake | null = null
+let autoScroller: AutoScroller | null = null
+
+const destroyReorder = (): void => {
+  autoScroller?.destroy(true)
+  autoScroller = null
+  drake?.destroy()
+  drake = null
+}
+
+// The list sits under `v-if="openedFilesInSidebar"`, so it can appear and
+// disappear while the tree stays mounted.
+watch(openedFilesList, (listEl) => {
+  destroyReorder()
+  if (!listEl) return
+  drake = createTabReorderDrake(listEl, 'vertical')
+  autoScroller = autoScroll([listEl], {
+    margin: 20,
+    maxSpeed: 6,
+    scrollWhenOutside: false,
+    autoScroll: () => !!autoScroller?.down && !!drake?.dragging
+  })
+}, { flush: 'post' })
 
 // From createFileOrDirectoryMixins
 const handleInputFocus = (): void => {
@@ -329,6 +417,9 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  destroyReorder()
+  document.removeEventListener('mousemove', handleResizeMove)
+  document.removeEventListener('mouseup', stopResize)
   bus.off('SIDEBAR::show-new-input', handleInputFocus)
   document.removeEventListener('click', handleDocumentClick)
   document.removeEventListener('contextmenu', handleDocumentContextMenu)
@@ -419,13 +510,22 @@ onUnmounted(() => {
   cursor: pointer;
 }
 .opened-files .opened-files-list {
-  max-height: 112px;
   overflow: auto;
   flex: 1;
 }
 
 .opened-files .opened-files-list::-webkit-scrollbar:vertical {
   width: 8px;
+}
+
+.opened-files-resize {
+  height: 4px;
+  flex-shrink: 0;
+  cursor: row-resize;
+}
+
+.opened-files-resize:hover {
+  border-bottom: 2px solid var(--iconColor);
 }
 
 .project-tree {
