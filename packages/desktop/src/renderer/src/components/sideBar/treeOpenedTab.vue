@@ -3,7 +3,10 @@
     class="opened-file"
     :title="file.pathname"
     :class="[{ active: currentFile?.id === file.id, unsaved: !file.isSaved }]"
+    :data-id="file.id"
     @click="selectFile(file)"
+    @click.middle="editorStore.CLOSE_TAB(file)"
+    @contextmenu.prevent="showContextMenu($event, file)"
   >
     <el-icon
       class="close-icon"
@@ -20,6 +23,7 @@
 import { storeToRefs } from 'pinia'
 import { useEditorStore } from '@/store/editor'
 import { Close } from '@element-plus/icons-vue'
+import { showContextMenu } from '@/contextMenu/tabs'
 import type { TabDescriptor } from './types'
 
 defineProps<{
@@ -89,5 +93,21 @@ const removeFileInTab = (file: TabDescriptor): void => {
 }
 .unsaved.opened-file:hover::before {
   content: none;
+}
+
+/* dragula effects */
+.gu-mirror {
+  position: fixed !important;
+  margin: 0 !important;
+  z-index: 9999 !important;
+  opacity: 0.8;
+  cursor: grabbing;
+  background: var(--sideBarItemHoverBgColor);
+}
+.gu-hide {
+  display: none !important;
+}
+.gu-transit {
+  opacity: 0.2;
 }
 </style>

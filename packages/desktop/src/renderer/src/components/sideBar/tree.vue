@@ -51,6 +51,7 @@
       </div>
       <div
         v-show="showOpenedFiles"
+        ref="openedFilesList"
         class="opened-files-list"
       >
         <transition-group name="list">
@@ -152,7 +153,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { storeToRefs } from 'pinia'
 import { useProjectStore } from '@/store/project'
 import { useEditorStore } from '@/store/editor'
@@ -160,10 +161,13 @@ import { usePreferencesStore } from '@/store/preferences'
 import Folder from './treeFolder.vue'
 import File from './treeFile.vue'
 import OpenedFile from './treeOpenedTab.vue'
+import { createTabReorderDrake } from '../editorWithTabs/tabReorder'
 import bus from '../../bus'
 import { showContextMenu } from '../../contextMenu/sideBar'
 import { useI18n } from 'vue-i18n'
 import { ArrowRight } from '@element-plus/icons-vue'
+import autoScroll from 'dom-autoscroller'
+import type dragula from 'dragula'
 import { PATH_SEPARATOR } from '@/config'
 import { isMac } from '@/util'
 import {
@@ -198,6 +202,8 @@ const SHOW_OPENED_FILES_KEY = 'side-bar-show-opened-files'
 const readSectionExpanded = (key: string): boolean => localStorage.getItem(key) !== 'false'
 const showDirectories = ref(readSectionExpanded(SHOW_DIRECTORIES_KEY))
 const showOpenedFiles = ref(readSectionExpanded(SHOW_OPENED_FILES_KEY))
+
+const openedFilesList = ref<HTMLElement | null>(null)
 const createName = ref('')
 const input = ref<HTMLInputElement | null>(null)
 
@@ -248,6 +254,35 @@ const toggleDirectories = (): void => {
   showDirectories.value = !showDirectories.value
   localStorage.setItem(SHOW_DIRECTORIES_KEY, String(showDirectories.value))
 }
+
+interface AutoScroller {
+  readonly down: boolean
+  destroy: (forceCleanAnimation?: boolean) => void
+}
+
+let drake: dragula.Drake | null = null
+let autoScroller: AutoScroller | null = null
+
+const destroyReorder = (): void => {
+  autoScroller?.destroy(true)
+  autoScroller = null
+  drake?.destroy()
+  drake = null
+}
+
+// The list sits under `v-if="openedFilesInSidebar"`, so it can appear and
+// disappear while the tree stays mounted.
+watch(openedFilesList, (listEl) => {
+  destroyReorder()
+  if (!listEl) return
+  drake = createTabReorderDrake(listEl, 'vertical')
+  autoScroller = autoScroll([listEl], {
+    margin: 20,
+    maxSpeed: 6,
+    scrollWhenOutside: false,
+    autoScroll: () => !!autoScroller?.down && !!drake?.dragging
+  })
+}, { flush: 'post' })
 
 // From createFileOrDirectoryMixins
 const handleInputFocus = (): void => {
@@ -329,6 +364,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  destroyReorder()
   bus.off('SIDEBAR::show-new-input', handleInputFocus)
   document.removeEventListener('click', handleDocumentClick)
   document.removeEventListener('contextmenu', handleDocumentContextMenu)
